@@ -111,4 +111,4 @@ print "Total de errores: " + str(error_count)
 
 #result = ZabbixSender(use_config=True).send(packet)*/
 
-zabbix_sender('averageResponseTime', str(average_response_time), '192.168.4.1-254' , 'NewRelic-api-jobs-produccion')
+zabbix_sender('averageResponseTime', str(average_response_time/inc), '192.168.4.1-254' , 'NewRelic-api-jobs-produccion')
