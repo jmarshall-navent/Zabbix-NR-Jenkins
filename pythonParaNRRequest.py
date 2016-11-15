@@ -1,6 +1,7 @@
 import logging
 import select
 import subprocess
+import datetime
 
 def zabbix_sender(key, output, server, hostname):
     """
@@ -30,7 +31,7 @@ def zabbix_sender(key, output, server, hostname):
     #server = "zabbix-server-name"
     #hostname = "http://zabbix-server.com"
 
-    cmd = "zabbix_sender -s " + server + " -z " + hostname + " -k " + key +\
+    cmd = "zabbix_sender -z " + server + " -s " + hostname + " -k " + key +\
             " -o \"" + output +"\""
     zabbix_send_is_running = lambda: zabbix_send_process.poll() is None
 
@@ -72,9 +73,20 @@ import requests
 id = 14102415
 headerApiKey = 'ef374bb363b7bd9bae2f4a327c474e2554ab5206d34401e'
 nameWebTTTSprCtl = 'WebTransactionTotalTime/SpringController/v0/empresas/avisos/ (GET)'
-nameError = "Errors/WebTransaction/SpringController/v0/empresas/avisos/ (GET)"
+nameError = 'Errors/WebTransaction/SpringController/v0/empresas/avisos/ (GET)'
 
-r = requests.get('https://api.newrelic.com/v2/applications/' +str(id) + '/metrics/data.json', headers={'X-Api-Key':headerApiKey}, params={'names':nameWebTTTSprCtl})
+dateTimeActual = datetime.datetime.now()
+print dateTimeActual
+today = datetime.datetime.now()
+dateTimeAnterior = today - datetime.timedelta(days=7)
+print dateTimeAnterior
+
+
+
+r = requests.get('https://api.newrelic.com/v2/applications/' +str(id) + '/metrics/data.json', headers={'X-Api-Key':headerApiKey}, params={'names':nameWebTTTSprCtl,'from':dateTimeAnterior,'to':dateTimeActual})
+
+#print r.json()
+
 
 
 average_response_time = 0
@@ -82,33 +94,39 @@ call_count = 0
 error_count = 0
 inc = 0
 
+
+
+
+
+
 for item in r.json()['metric_data']['metrics'][0]['timeslices']:
 	average_response_time += item['values']['average_response_time']
 	call_count += item['values']['call_count']
 	inc += 1
 
+average_response_time = average_response_time/inc
 
-print "Tiempo promedio de respuesta: " + str(average_response_time/inc)
-print "Total de llamados en los ultimos 30 minutos: " + str(call_count)
+print inc
+print "Tiempo promedio de respuesta: " + str(average_response_time)
+print "Total de llamados en la ultima semana " + str(call_count)
 
-r2 = requests.get('https://api.newrelic.com/v2/applications/'+ str(id) + '/metrics/data.json', headers={'X-Api-Key':headerApiKey}, params={'names': nameError})
+
+
+
+r2 = requests.get('https://api.newrelic.com/v2/applications/'+ str(id) + '/metrics/data.json', headers={'X-Api-Key':headerApiKey}, params={'names': nameError, 'from':dateTimeAnterior,'to':dateTimeActual})
 
 #for item in r2.json()['metric_data']['metrics_found']:
 #	print item
-#for item in r2.json()['metric_data']['metrics'][0]['timeslices']:
-#	error_count += item['values']['error_count']
+
+for item in r2.json()['metric_data']['metrics'][0]['timeslices']:
+	error_count += item['values']['error_count']
 
 print "Total de errores: " + str(error_count)
 
 
-#from pyzabbix import ZabbixMetric, ZabbixSender
 
-# Send metrics to zabbix trapper
-#packet = [
-#  ZabbixMetric('NewRelic-api-jobs-produccion', 'test[average_response_time]', average_response_time),
-#  ZabbixMetric('hostname1', 'test[system_status]', "OK"),
-#]
 
-#result = ZabbixSender(use_config=True).send(packet)*/
+#zabbix_sender(key, output, server, hostname)
+zabbix_sender('average_response_time', str(average_response_time), 'zabbix.bumeran.biz' , 'NewRelic-EmpresasCV')
 
-zabbix_sender('averageResponseTime', str(average_response_time/inc), '192.168.4.1-254' , 'NewRelic-api-jobs-produccion')
+zabbix_sender('error_count', str(error_count), 'zabbix.bumeran.biz' , 'NewRelic-EmpresasCV')
