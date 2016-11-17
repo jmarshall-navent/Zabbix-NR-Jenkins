@@ -2,8 +2,12 @@ import logging
 import select
 import subprocess
 import datetime
+import time
+import io
+import os
 
-def zabbix_sender(key, output, server, hostname):
+#def zabbix_sender(key, output, server, hostname, timestamp):
+def zabbix_sender(server, hostname, input_file):
     """
     Sends a message to the Zabbix monitoring server to update the given key
     with the given output. This is designed to be only called whenever
@@ -26,13 +30,10 @@ def zabbix_sender(key, output, server, hostname):
     # When I actually did this at work, I had the server and hostname set in an
     # external configuration file. That's probably how you want to do this as
     # opposed to hard-coding it into the script.
-    
-    #los pongo como parametros
-    #server = "zabbix-server-name"
-    #hostname = "http://zabbix-server.com"
 
-    cmd = "zabbix_sender -z " + server + " -s " + hostname + " -k " + key +\
-            " -o \"" + output +"\""
+    cmd = "zabbix_sender -z  " + server + " -s " + hostname + " -T -r -i " + input_file 
+
+
     zabbix_send_is_running = lambda: zabbix_send_process.poll() is None
 
     zabbix_send_process = subprocess.Popen(cmd,
@@ -70,63 +71,55 @@ def zabbix_sender(key, output, server, hostname):
 
 
 import requests
-id = 14102415
-headerApiKey = 'ef374bb363b7bd9bae2f4a327c474e2554ab5206d34401e'
-nameWebTTTSprCtl = 'WebTransactionTotalTime/SpringController/v0/empresas/avisos/ (GET)'
-nameError = 'Errors/WebTransaction/SpringController/v0/empresas/avisos/ (GET)'
-
-dateTimeActual = datetime.datetime.now()
-print dateTimeActual
-today = datetime.datetime.now()
-dateTimeAnterior = today - datetime.timedelta(days=7)
-print dateTimeAnterior
 
 
+def makeRequestAndZabbixSender(endpointName, hostname):
+    id = 14102415
+    headerApiKey = 'ef374bb363b7bd9bae2f4a327c474e2554ab5206d34401e'
+    nameWebTTTSprCtl = 'WebTransactionTotalTime/SpringController/v0/' + endpointName 
+    nameError = 'Errors/WebTransaction/SpringController/v0/' + endpointName
 
-r = requests.get('https://api.newrelic.com/v2/applications/' +str(id) + '/metrics/data.json', headers={'X-Api-Key':headerApiKey}, params={'names':nameWebTTTSprCtl,'from':dateTimeAnterior,'to':dateTimeActual})
+    dateTimeActual = datetime.datetime.now()
+    dateTimeActual = dateTimeActual.replace(minute=0, second=0)
 
-#print r.json()
+    print dateTimeActual
+
+    dateTimeAnterior = dateTimeActual - datetime.timedelta(days=1)
 
 
 
-average_response_time = 0
-call_count = 0
-error_count = 0
-inc = 0
+    r = requests.get('https://api.newrelic.com/v2/applications/' +str(id) + '/metrics/data.json', headers={'X-Api-Key':headerApiKey}, params={'names':nameWebTTTSprCtl,'from':dateTimeAnterior,'to':dateTimeActual, 'values':'average_response_time'})
+
+    for item in r.json()['metric_data']['metrics'][0]['timeslices']:
+    	average_response_time = item['values']['average_response_time']
+    	print average_response_time
+    	timestamp = item['from']
+    	print timestamp
+    	timestamp = timestamp.replace(' ', '')[:-7].upper()
+    	timestamp = int(time.mktime(datetime.datetime.strptime(timestamp, "%Y-%m-%dT%H:%M:%S").timetuple()))
+    	io.FileIO("foobar.txt", "a").write(hostname + ' average_response_time ' +  str(timestamp) + ' ' + str(average_response_time) + ' \n')
+
+    zabbix_sender('zabbix.bumeran.biz', hostname, 'foobar.txt')
+    os.remove("foobar.txt")
+
+    r2 = requests.get('https://api.newrelic.com/v2/applications/'+ str(id) + '/metrics/data.json', headers={'X-Api-Key':headerApiKey}, params={'names': nameError, 'from':dateTimeAnterior,'to':dateTimeActual})
+
+    for item in r2.json()['metric_data']['metrics'][0]['timeslices']:
+    	error_count = item['values']['error_count']
+    	print error_count
+    	timestamp = item['from']
+    	print timestamp
+    	timestamp = timestamp.replace(' ', '')[:-7].upper()
+    	timestamp = int(time.mktime(datetime.datetime.strptime(timestamp, "%Y-%m-%dT%H:%M:%S").timetuple()))
+    	io.FileIO("foobar.txt", "a").write(hostname + ' error_count ' +  str(timestamp) + ' ' + str(error_count) + ' \n')
+
+    zabbix_sender('zabbix.bumeran.biz', hostname, 'foobar.txt')
+    os.remove("foobar.txt")
 
 
+makeRequestAndZabbixSender('empresas/avisos/ (GET)', 'NR-EmpresasAvisos')
+makeRequestAndZabbixSender('empresas/curriculums/ (GET)', 'NewRelic-EmpresasCV')
 
+makeRequestAndZabbixSender('empresas/avisos/{avisoId}/postulaciones (GET)', 'NewRelic-EmpresasAvisoPostulaciones')
+makeRequestAndZabbixSender('application/avisos/search (POST)', 'NewRelic-AplicacionAvisosSearch')
 
-
-
-for item in r.json()['metric_data']['metrics'][0]['timeslices']:
-	average_response_time += item['values']['average_response_time']
-	call_count += item['values']['call_count']
-	inc += 1
-
-average_response_time = average_response_time/inc
-
-print inc
-print "Tiempo promedio de respuesta: " + str(average_response_time)
-print "Total de llamados en la ultima semana " + str(call_count)
-
-
-
-
-r2 = requests.get('https://api.newrelic.com/v2/applications/'+ str(id) + '/metrics/data.json', headers={'X-Api-Key':headerApiKey}, params={'names': nameError, 'from':dateTimeAnterior,'to':dateTimeActual})
-
-#for item in r2.json()['metric_data']['metrics_found']:
-#	print item
-
-for item in r2.json()['metric_data']['metrics'][0]['timeslices']:
-	error_count += item['values']['error_count']
-
-print "Total de errores: " + str(error_count)
-
-
-
-
-#zabbix_sender(key, output, server, hostname)
-zabbix_sender('average_response_time', str(average_response_time), 'zabbix.bumeran.biz' , 'NewRelic-EmpresasCV')
-
-zabbix_sender('error_count', str(error_count), 'zabbix.bumeran.biz' , 'NewRelic-EmpresasCV')
