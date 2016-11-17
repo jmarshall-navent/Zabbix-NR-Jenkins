@@ -82,7 +82,7 @@ def makeRequestAndZabbixSender(endpointName, hostname):
     dateTimeActual = datetime.datetime.now()
     dateTimeActual = dateTimeActual.replace(minute=0, second=0)
 
-    print dateTimeActual
+    
 
     dateTimeAnterior = dateTimeActual - datetime.timedelta(days=1)
 
@@ -92,9 +92,7 @@ def makeRequestAndZabbixSender(endpointName, hostname):
 
     for item in r.json()['metric_data']['metrics'][0]['timeslices']:
     	average_response_time = item['values']['average_response_time']
-    	print average_response_time
     	timestamp = item['from']
-    	print timestamp
     	timestamp = timestamp.replace(' ', '')[:-7].upper()
     	timestamp = int(time.mktime(datetime.datetime.strptime(timestamp, "%Y-%m-%dT%H:%M:%S").timetuple()))
     	io.FileIO("foobar.txt", "a").write(hostname + ' average_response_time ' +  str(timestamp) + ' ' + str(average_response_time) + ' \n')
@@ -106,9 +104,7 @@ def makeRequestAndZabbixSender(endpointName, hostname):
 
     for item in r2.json()['metric_data']['metrics'][0]['timeslices']:
     	error_count = item['values']['error_count']
-    	print error_count
     	timestamp = item['from']
-    	print timestamp
     	timestamp = timestamp.replace(' ', '')[:-7].upper()
     	timestamp = int(time.mktime(datetime.datetime.strptime(timestamp, "%Y-%m-%dT%H:%M:%S").timetuple()))
     	io.FileIO("foobar.txt", "a").write(hostname + ' error_count ' +  str(timestamp) + ' ' + str(error_count) + ' \n')
