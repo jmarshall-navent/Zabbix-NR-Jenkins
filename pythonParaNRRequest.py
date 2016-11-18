@@ -30,6 +30,13 @@ def zabbix_sender(server, hostname, input_file):
     # When I actually did this at work, I had the server and hostname set in an
     # external configuration file. That's probably how you want to do this as
     # opposed to hard-coding it into the script.
+    
+    #los pongo como parametros
+    #server = "zabbix-server-name"
+    #hostname = "http://zabbix-server.com"
+
+    #cmd = "zabbix_sender -z " + server + " -s " + hostname +"--with-timestamps " + timestamp + " -k " + key +\
+    #        " -o \"" + output +"\""
 
     cmd = "zabbix_sender -z  " + server + " -s " + hostname + " -T -r -i " + input_file 
 
@@ -71,10 +78,49 @@ def zabbix_sender(server, hostname, input_file):
 
 
 import requests
+from requests.utils import quote
 
+
+def makeNRInsightsAndSend(endpointSuffix, hostname):
+    queryApiKey = 'oFd67cCnqPSlKnO1B0Fge-3YpBA4OyPs'
+    endpointSuffix = quote(endpointSuffix, safe='')
+
+    #endpoint = 'https://insights-api.newrelic.com/v1/accounts/1233785/query?nrql=SELECT%20percentile%28databaseDuration%20%2a%201000%2C%2070%2C%2095%2C%2099%29%2C%20average%28databaseDuration%29%20%2a%201000%20as%20prom%2C%20max%28databaseDuration%29%20%2a%201000%20as%20max%2C%20stddev%28databaseDuration%29%20%2a%201000%20as%20std%20%2C%20min%28timestamp%29%20as%20timestamp%20FROM%20%20Transaction%20FACET%20name%20SINCE%201%20day%20ago%20where%20appName%20%3D%20%27api-jobs-produccion%27%20and%20name%20%3D%20%27WebTransaction%2FSpringController%2Fv0%2F'
+    
+    endpoint = 'https://insights-api.newrelic.com/v1/accounts/1233785/query?nrql=SELECT%20percentile%28duration%20%2a%201000%2C%2070%2C%2095%2C%2099%29%2C%20average%28duration%29%20%2a%201000%20as%20prom%2C%20max%28duration%29%20%2a%201000%20as%20max%2C%20stddev%28duration%29%20%2a%201000%20as%20std%20%2C%20min%28timestamp%29%20as%20timestamp%20FROM%20%20Transaction%20FACET%20name%20SINCE%201%20day%20ago%20where%20appName%20%3D%20%27api-jobs-produccion%27%20and%20name%20%3D%20%27WebTransaction%2FSpringController%2Fv0%2F'
+
+    endpoint = endpoint + endpointSuffix + '%27'
+    
+    r = requests.get(endpoint, headers={'X-Query-Key': queryApiKey})
+    
+    jsonPercentiles = r.json()['totalResult']['results'][0]['percentiles']
+    p99 = jsonPercentiles['99']
+    p95 = jsonPercentiles['95']
+    p70 = jsonPercentiles['70']
+
+    dateTimeActual = datetime.datetime.now()
+
+
+
+    dateTimeAnterior = dateTimeActual - datetime.timedelta(days=1)
+
+    dateTimeAnterior = str(dateTimeAnterior).replace('', '')[:-7].upper()
+
+    timestamp = int(time.mktime(datetime.datetime.strptime(str(dateTimeAnterior), "%Y-%m-%d %H:%M:%S").timetuple()))
+
+
+    
+    io.FileIO("foobar.txt", "a").write(hostname + ' avg_percentile_99 ' +  str(timestamp) + ' ' + str(p99) + ' \n')
+    io.FileIO("foobar.txt", "a").write(hostname + ' avg_percentile_95 ' +  str(timestamp) + ' ' + str(p95) + ' \n')
+    io.FileIO("foobar.txt", "a").write(hostname + ' avg_percentile_70 ' +  str(timestamp) + ' ' + str(p70) + ' \n')
+
+    zabbix_sender('zabbix.bumeran.biz', hostname, 'foobar.txt')
+    os.remove("foobar.txt")
 
 def makeRequestAndZabbixSender(endpointName, hostname):
+    
     id = 14102415
+    #apijobsProduccion
     headerApiKey = 'ef374bb363b7bd9bae2f4a327c474e2554ab5206d34401e'
     nameWebTTTSprCtl = 'WebTransactionTotalTime/SpringController/v0/' + endpointName 
     nameError = 'Errors/WebTransaction/SpringController/v0/' + endpointName
@@ -82,21 +128,20 @@ def makeRequestAndZabbixSender(endpointName, hostname):
     dateTimeActual = datetime.datetime.now()
     dateTimeActual = dateTimeActual.replace(minute=0, second=0)
 
-    
 
     dateTimeAnterior = dateTimeActual - datetime.timedelta(days=1)
 
 
 
     r = requests.get('https://api.newrelic.com/v2/applications/' +str(id) + '/metrics/data.json', headers={'X-Api-Key':headerApiKey}, params={'names':nameWebTTTSprCtl,'from':dateTimeAnterior,'to':dateTimeActual, 'values':'average_response_time'})
-
     for item in r.json()['metric_data']['metrics'][0]['timeslices']:
     	average_response_time = item['values']['average_response_time']
     	timestamp = item['from']
     	timestamp = timestamp.replace(' ', '')[:-7].upper()
     	timestamp = int(time.mktime(datetime.datetime.strptime(timestamp, "%Y-%m-%dT%H:%M:%S").timetuple()))
     	io.FileIO("foobar.txt", "a").write(hostname + ' average_response_time ' +  str(timestamp) + ' ' + str(average_response_time) + ' \n')
-
+        
+    
     zabbix_sender('zabbix.bumeran.biz', hostname, 'foobar.txt')
     os.remove("foobar.txt")
 
@@ -119,3 +164,7 @@ makeRequestAndZabbixSender('empresas/curriculums/ (GET)', 'NewRelic-EmpresasCV')
 makeRequestAndZabbixSender('empresas/avisos/{avisoId}/postulaciones (GET)', 'NewRelic-EmpresasAvisoPostulaciones')
 makeRequestAndZabbixSender('application/avisos/search (POST)', 'NewRelic-AplicacionAvisosSearch')
 
+makeNRInsightsAndSend('empresas/curriculums/ (GET)', 'NewRelic-EmpresasCV')
+makeNRInsightsAndSend('empresas/avisos/{avisoId}/postulaciones (GET)', 'NewRelic-EmpresasAvisoPostulaciones')
+makeNRInsightsAndSend('empresas/avisos/ (GET)', 'NR-EmpresasAvisos')
+makeNRInsightsAndSend('application/avisos/search (POST)', 'NewRelic-AplicacionAvisosSearch')
