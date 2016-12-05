@@ -82,18 +82,21 @@ import requests
 from requests.utils import quote
 
 
-def makeNRInsightsAndSend(endpointSuffix, hostname):
+def makeNRInsightsAndSend(endpointSuffix, hostname, appName):
     queryApiKey = 'oFd67cCnqPSlKnO1B0Fge-3YpBA4OyPs'
     endpointSuffix = quote(endpointSuffix, safe='')
 
     #endpoint = 'https://insights-api.newrelic.com/v1/accounts/1233785/query?nrql=SELECT%20percentile%28databaseDuration%20%2a%201000%2C%2070%2C%2095%2C%2099%29%2C%20average%28databaseDuration%29%20%2a%201000%20as%20prom%2C%20max%28databaseDuration%29%20%2a%201000%20as%20max%2C%20stddev%28databaseDuration%29%20%2a%201000%20as%20std%20%2C%20min%28timestamp%29%20as%20timestamp%20FROM%20%20Transaction%20FACET%20name%20SINCE%201%20day%20ago%20where%20appName%20%3D%20%27api-jobs-produccion%27%20and%20name%20%3D%20%27WebTransaction%2FSpringController%2Fv0%2F'
-    
-    endpoint = 'https://insights-api.newrelic.com/v1/accounts/1233785/query?nrql=SELECT%20percentile%28duration%20%2a%201000%2C%2070%2C%2095%2C%2099%29%2C%20average%28duration%29%20%2a%201000%20as%20prom%2C%20max%28duration%29%20%2a%201000%20as%20max%2C%20stddev%28duration%29%20%2a%201000%20as%20std%20%2C%20min%28timestamp%29%20as%20timestamp%20FROM%20%20Transaction%20FACET%20name%20SINCE%201%20day%20ago%20where%20appName%20%3D%20%27api-jobs-produccion%27%20and%20name%20%3D%20%27WebTransaction%2FSpringController%2Fv0%2F'
+    #
+    #
+    #Esta dentro del endpoint que app es. En este caso esta     apijobsProduccion  que seria id 14102415
+    #
+    endpoint = 'https://insights-api.newrelic.com/v1/accounts/1233785/query?nrql=SELECT%20percentile%28duration%20%2a%201000%2C%2070%2C%2095%2C%2099%29%2C%20average%28duration%29%20%2a%201000%20as%20prom%2C%20max%28duration%29%20%2a%201000%20as%20max%2C%20stddev%28duration%29%20%2a%201000%20as%20std%20%2C%20min%28timestamp%29%20as%20timestamp%20FROM%20%20Transaction%20FACET%20name%20SINCE%201%20day%20ago%20where%20appName%20%3D%20%27' + appName + '%27%20and%20name%20%3D%20%27WebTransaction%2FSpringController%2Fv0%2F'
 
     endpoint = endpoint + endpointSuffix + '%27'
     
     r = requests.get(endpoint, headers={'X-Query-Key': queryApiKey})
-
+    
     jsonPercentiles = r.json()['totalResult']['results'][0]['percentiles']
     p99 = jsonPercentiles['99']
     p95 = jsonPercentiles['95']
@@ -104,7 +107,9 @@ def makeNRInsightsAndSend(endpointSuffix, hostname):
 
 
     dateTimeAnterior = dateTimeActual - datetime.timedelta(days=1)
+
     dateTimeAnterior = str(dateTimeAnterior).replace('', '')[:-7].upper()
+
 
     timestamp = int(time.mktime(datetime.datetime.strptime(str(dateTimeAnterior), "%Y-%m-%d %H:%M:%S").timetuple()))
 
@@ -116,10 +121,9 @@ def makeNRInsightsAndSend(endpointSuffix, hostname):
     zabbix_sender('zabbix.bumeran.biz', hostname, 'foobar.txt')
     os.remove("foobar.txt")
 
-def makeRequestAndZabbixSender(endpointName, hostname):
+def makeRequestAndZabbixSender(endpointName, hostname, id):
     
-    id = 14102415
-    #apijobsProduccion
+
     headerApiKey = 'ef374bb363b7bd9bae2f4a327c474e2554ab5206d34401e'
     nameWebTTTSprCtl = 'WebTransactionTotalTime/SpringController/v0/' + endpointName 
     nameError = 'Errors/WebTransaction/SpringController/v0/' + endpointName
@@ -128,12 +132,12 @@ def makeRequestAndZabbixSender(endpointName, hostname):
     dateTimeActual = dateTimeActual.replace(minute=0, second=0)
 
 
-
     dateTimeAnterior = dateTimeActual - datetime.timedelta(days=1)
 
 
 
     r = requests.get('https://api.newrelic.com/v2/applications/' +str(id) + '/metrics/data.json', headers={'X-Api-Key':headerApiKey}, params={'names':nameWebTTTSprCtl,'from':dateTimeAnterior,'to':dateTimeActual, 'values':'average_response_time'})
+
     for item in r.json()['metric_data']['metrics'][0]['timeslices']:
     	average_response_time = item['values']['average_response_time']
     	timestamp = item['from']
@@ -149,7 +153,9 @@ def makeRequestAndZabbixSender(endpointName, hostname):
     r2 = requests.get('https://api.newrelic.com/v2/applications/'+ str(id) + '/metrics/data.json', headers={'X-Api-Key':headerApiKey}, params={'names': nameError, 'from':dateTimeAnterior,'to':dateTimeActual})
 
     if (len(r2.json()['metric_data']['metrics_not_found']) != 0):
+        print "no hay data"
         return 
+    print "Si haty data"
     for item in r2.json()['metric_data']['metrics'][0]['timeslices']:
     	error_count = item['values']['error_count']
     	timestamp = item['from']
@@ -161,13 +167,32 @@ def makeRequestAndZabbixSender(endpointName, hostname):
     os.remove("foobar.txt")
 
 
-makeRequestAndZabbixSender('empresas/avisos/ (GET)', 'NR-EmpresasAvisos')
-makeRequestAndZabbixSender('empresas/curriculums/ (GET)', 'NewRelic-EmpresasCV')
+#apijobsProduccion
+idApiJobs = 14102415
+bm = 'api-jobs-produccion'
+#api-jobs-zj-produccion
+idZJ = 15119756
+zj = 'api-jobs-zj-produccion'
 
-makeRequestAndZabbixSender('empresas/avisos/{avisoId}/postulaciones (GET)', 'NewRelic-EmpresasAvisoPostulaciones')
-makeRequestAndZabbixSender('application/avisos/search (POST)', 'NewRelic-AplicacionAvisosSearch')
+makeRequestAndZabbixSender('empresas/avisos/ (GET)', 'ZJ-NR-EmpresasAvisos', idZJ)
+makeRequestAndZabbixSender('empresas/curriculums/ (GET)', 'ZJ-NewRelic-EmpresasCV', idZJ)
+makeRequestAndZabbixSender('empresas/avisos/{avisoId}/postulaciones (GET)', 'ZJ-NewRelic-EmpresasAvisoPostulaciones', idZJ)
+makeRequestAndZabbixSender('application/avisos/search (POST)', 'ZJ-NewRelic-AplicacionAvisosSearch', idZJ)
 
-makeNRInsightsAndSend('empresas/curriculums/ (GET)', 'NewRelic-EmpresasCV')
-makeNRInsightsAndSend('empresas/avisos/{avisoId}/postulaciones (GET)', 'NewRelic-EmpresasAvisoPostulaciones')
-makeNRInsightsAndSend('empresas/avisos/ (GET)', 'NR-EmpresasAvisos')
-makeNRInsightsAndSend('application/avisos/search (POST)', 'NewRelic-AplicacionAvisosSearch')
+
+makeNRInsightsAndSend('empresas/curriculums/ (GET)', 'ZJ-NewRelic-EmpresasCV', zj)
+makeNRInsightsAndSend('empresas/avisos/{avisoId}/postulaciones (GET)', 'ZJ-NewRelic-EmpresasAvisoPostulaciones', zj)
+makeNRInsightsAndSend('empresas/avisos/ (GET)', 'ZJ-NR-EmpresasAvisos', zj)
+makeNRInsightsAndSend('application/avisos/search (POST)', 'ZJ-NewRelic-AplicacionAvisosSearch', zj)
+
+
+
+makeRequestAndZabbixSender('empresas/avisos/ (GET)', 'NR-EmpresasAvisos', idApiJobs)
+makeRequestAndZabbixSender('empresas/curriculums/ (GET)', 'NewRelic-EmpresasCV', idApiJobs)
+makeRequestAndZabbixSender('empresas/avisos/{avisoId}/postulaciones (GET)', 'NewRelic-EmpresasAvisoPostulaciones', idApiJobs)
+makeRequestAndZabbixSender('application/avisos/search (POST)', 'NewRelic-AplicacionAvisosSearch', idApiJobs)
+
+makeNRInsightsAndSend('empresas/curriculums/ (GET)', 'NewRelic-EmpresasCV', bm)
+makeNRInsightsAndSend('empresas/avisos/{avisoId}/postulaciones (GET)', 'NewRelic-EmpresasAvisoPostulaciones', bm)
+makeNRInsightsAndSend('empresas/avisos/ (GET)', 'NR-EmpresasAvisos', bm)
+makeNRInsightsAndSend('application/avisos/search (POST)', 'NewRelic-AplicacionAvisosSearch', bm)
