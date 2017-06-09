@@ -82,8 +82,7 @@ import requests
 from requests.utils import quote
 
 
-def makeNRInsightsAndSend(endpointSuffix, hostname, appName):
-    queryApiKey = 'oFd67cCnqPSlKnO1B0Fge-3YpBA4OyPs'
+def makeNRInsightsAndSend(endpointSuffix, hostname, appName, queryApiKey):
     endpointSuffix = quote(endpointSuffix, safe='')
 
     #endpoint = 'https://insights-api.newrelic.com/v1/accounts/1233785/query?nrql=SELECT%20percentile%28databaseDuration%20%2a%201000%2C%2070%2C%2095%2C%2099%29%2C%20average%28databaseDuration%29%20%2a%201000%20as%20prom%2C%20max%28databaseDuration%29%20%2a%201000%20as%20max%2C%20stddev%28databaseDuration%29%20%2a%201000%20as%20std%20%2C%20min%28timestamp%29%20as%20timestamp%20FROM%20%20Transaction%20FACET%20name%20SINCE%201%20day%20ago%20where%20appName%20%3D%20%27api-jobs-produccion%27%20and%20name%20%3D%20%27WebTransaction%2FSpringController%2Fv0%2F'
@@ -121,10 +120,8 @@ def makeNRInsightsAndSend(endpointSuffix, hostname, appName):
     zabbix_sender('zabbix.bumeran.biz', hostname, 'foobar.txt')
     os.remove("foobar.txt")
 
-def makeRequestAndZabbixSender(endpointName, hostname, id):
+def makeRequestAndZabbixSender(endpointName, hostname, id, headerApiKey):
     
-
-    headerApiKey = 'ef374bb363b7bd9bae2f4a327c474e2554ab5206d34401e'
     nameWebTTTSprCtl = 'WebTransactionTotalTime/SpringController/v0/' + endpointName 
     nameError = 'Errors/WebTransaction/SpringController/v0/' + endpointName
 
@@ -174,16 +171,17 @@ bm = 'api-jobs-produccion'
 idZJ = 15119756
 zj = 'api-jobs-zj-produccion'
 
-makeRequestAndZabbixSender('empresas/avisos/ (GET)', 'ZJ-NR-EmpresasAvisos', idZJ)
-makeRequestAndZabbixSender('empresas/curriculums/ (GET)', 'ZJ-NewRelic-EmpresasCV', idZJ)
-makeRequestAndZabbixSender('empresas/avisos/{avisoId}/postulaciones (GET)', 'ZJ-NewRelic-EmpresasAvisoPostulaciones', idZJ)
-makeRequestAndZabbixSender('application/avisos/search (POST)', 'ZJ-NewRelic-AplicacionAvisosSearch', idZJ)
+def main(queryApiKey):
+    makeRequestAndZabbixSender('empresas/avisos/ (GET)', 'ZJ-NR-EmpresasAvisos', idZJ, queryApiKey)
+    makeRequestAndZabbixSender('empresas/curriculums/ (GET)', 'ZJ-NewRelic-EmpresasCV', idZJ, queryApiKey)
+    makeRequestAndZabbixSender('empresas/avisos/{avisoId}/postulaciones (GET)', 'ZJ-NewRelic-EmpresasAvisoPostulaciones', idZJ, queryApiKey)
+    makeRequestAndZabbixSender('application/avisos/search (POST)', 'ZJ-NewRelic-AplicacionAvisosSearch', idZJ, queryApiKey)
 
 
-makeNRInsightsAndSend('empresas/curriculums/ (GET)', 'ZJ-NewRelic-EmpresasCV', zj)
-makeNRInsightsAndSend('empresas/avisos/{avisoId}/postulaciones (GET)', 'ZJ-NewRelic-EmpresasAvisoPostulaciones', zj)
-makeNRInsightsAndSend('empresas/avisos/ (GET)', 'ZJ-NR-EmpresasAvisos', zj)
-makeNRInsightsAndSend('application/avisos/search (POST)', 'ZJ-NewRelic-AplicacionAvisosSearch', zj)
+    makeNRInsightsAndSend('empresas/curriculums/ (GET)', 'ZJ-NewRelic-EmpresasCV', zj, queryApiKey)
+    makeNRInsightsAndSend('empresas/avisos/{avisoId}/postulaciones (GET)', 'ZJ-NewRelic-EmpresasAvisoPostulaciones', zj, queryApiKey)
+    makeNRInsightsAndSend('empresas/avisos/ (GET)', 'ZJ-NR-EmpresasAvisos', zj, queryApiKey)
+    makeNRInsightsAndSend('application/avisos/search (POST)', 'ZJ-NewRelic-AplicacionAvisosSearch', zj, queryApiKey)
 
 
 
